@@ -1,51 +1,32 @@
-name: Build vLLM SIF Image
+name: Build and Push Docker Image
 
 on:
-  workflow_dispatch: # 允许你在 GitHub 网页上手动点击运行
+  workflow_dispatch:
   push:
-    tags:
-      - 'v*' # 比如你推送一个标签叫 v1.0，它就会自动开始
+    branches: [ "main" ] # 只要推送到 main 分支就触发
 
 jobs:
-  build-sif:
+  build-and-push:
     runs-on: ubuntu-latest
-    # 设置权限，允许脚本创建 Release
     permissions:
-      contents: write
+      contents: read
+      packages: write # 必须开启，否则无法推送镜像
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. 腾出约 50GB 的可用空间 (针对 vLLM 这种超大镜像必做)
-      - name: Free Disk Space
-        uses: jlumbroso/free-disk-space@main
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 2. 安装 Apptainer
-      - name: Install Apptainer
-        run: |
-          sudo add-apt-repository -y ppa:apptainer/ppa
-          sudo apt update
-          sudo apt install -y apptainer
-
-      # 3. 构建 SIF 镜像
-      # 注意：确保你的 agent_vllm.def 就在仓库根目录下
-      - name: Build SIF
-        run: |
-          sudo apptainer build agent_vllm.sif agent_vllm.def
-
-      # 4. 创建 Release 并上传 (这是传给 NSCC 最稳妥的方式)
-      - name: Create Release and Upload
-        uses: softprops/action-gh-release@v2
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
         with:
-          tag_name: ${{ github.ref_name }}
-          files: agent_vllm.sif
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          context: .
+          push: true
+          # 镜像名称会自动转为小写以符合规范
+          tags: ghcr.io/${{ github.repository_owner }}/agent_vllm:latest
