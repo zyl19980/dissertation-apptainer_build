@@ -1,0 +1,38 @@
+Bootstrap: docker
+# 使用 NVIDIA 官方 PyTorch 镜像，CUDA 环境最稳
+From: nvcr.io/nvidia/pytorch:24.01-py3
+
+%help
+    这是一个专为 NSCC A100 优化的 vLLM 容器。
+    包含 vLLM 0.6.3+ 和基础 Agent 开发工具。
+    用法：singularity run --nv -B /scratch/path:/data agent_vllm.sif --model /data/model
+
+%environment
+    # 设置运行时的环境变量
+    export LC_ALL=C
+    export HF_HUB_OFFLINE=1
+    export VLLM_CACHE_ROOT=/tmp/.vllm_cache
+    export PYTHONSMARTBUFFER=1
+
+%post
+    # 1. 基础系统更新
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update && apt-get install -y git wget vim
+
+    # 2. 升级 pip 并安装核心推理引擎
+    # 清理缓存以节省构建时的磁盘空间
+    pip install --no-cache-dir --upgrade pip
+    pip install --no-cache-dir vllm==0.6.3
+    
+    # 3. 安装 Agent 研究常用依赖 (如需 SGLang 可在此添加)
+    pip install --no-cache-dir openai modelscope numpy pandas
+
+    # 4. 彻底清理临时文件（减小 .sif 体积）
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+    rm -rf /root/.cache/pip
+
+%runscript
+    # 默认启动 vLLM 的 OpenAI API 服务
+    # 所有的参数（如 --model）都会传递给这个命令
+    exec python3 -m vllm.entrypoints.openai.api_server "$@"

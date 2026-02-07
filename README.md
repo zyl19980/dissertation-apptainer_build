@@ -1,1 +1,2 @@
 # dissertation-apptainer_build
+该仓库用来构建apptaineri镜像，用于新加坡NSCC服务器的模型部署
